@@ -1,5 +1,6 @@
 const choresKey = "tadoo-chores";
 const themeKey = "tadoo-theme";
+const linkedAccountKey = "tadoo-linked-account";
 const localClientIdKey = "tadoo-client-id";
 const localClientCookieName = "tadoo_client_id";
 const localClientIdMaxAgeSeconds = 60 * 60 * 24 * 730;
@@ -23,6 +24,26 @@ export function readTheme() {
 
 export function writeTheme(theme) {
   localStorage.setItem(themeKey, theme);
+}
+
+export function readLinkedAccount() {
+  try {
+    const value = localStorage.getItem(linkedAccountKey);
+    return value ? JSON.parse(value) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeLinkedAccount(profile) {
+  if (!profile?.identityId) {
+    localStorage.removeItem(linkedAccountKey);
+    return;
+  }
+  localStorage.setItem(linkedAccountKey, JSON.stringify({
+    identityId: profile.identityId,
+    email: profile.identityEmail || profile.email || ""
+  }));
 }
 
 export function getLocalClientId() {

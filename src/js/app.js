@@ -1,6 +1,6 @@
 import { addDays, addMonths, addWeeks, dateStr, DAYS, MONTHS, parseDate, today, todayStr } from "./date.js";
 import { buildWholegrainLinkUrl, fetchRemoteProfile, restoreWholegrainProfile, syncRemoteChores } from "./api.js";
-import { readChores, readTheme, writeChores, writeTheme } from "./storage.js";
+import { readChores, readLinkedAccount, readTheme, writeChores, writeLinkedAccount, writeTheme } from "./storage.js";
 
 const SYMBOLS = ["Home", "Dishes", "Plants", "Shop", "Meds", "Pets", "Work", "Car", "Bills", "Clean", "Laundry", "Fix", "Boxes", "Money", "Gym", "Books", "Post", "Goal", "Soap", "Bath", "Night", "Day", "Birthday", "Gift"];
 const SYMBOL_ICONS = ["ti-home", "ti-tools-kitchen-2", "ti-plant", "ti-shopping-cart", "ti-pill", "ti-paw", "ti-briefcase", "ti-car", "ti-bulb", "ti-brush", "ti-shirt", "ti-tool", "ti-package", "ti-coins", "ti-barbell", "ti-books", "ti-mail", "ti-target", "ti-spray", "ti-bath", "ti-moon", "ti-sun", "ti-cake", "ti-gift"];
@@ -13,6 +13,7 @@ let calPickerCallback = null;
 let calPickerMin = null;
 let calPickerMax = null;
 let syncStatus = "Saved on this device";
+let linkedAccount = readLinkedAccount();
 
 const overlay = document.getElementById("overlay");
 const dialogContainer = document.getElementById("dialog-container");
@@ -44,6 +45,7 @@ async function restoreFromUrl() {
     const profile = await restoreWholegrainProfile(restoreToken);
     if (Array.isArray(profile?.chores)) {
       chores = profile.chores;
+      rememberLinkedAccount(profile);
       persist("Linked chores restored");
     }
   } catch (error) {
@@ -54,7 +56,9 @@ async function restoreFromUrl() {
 async function hydrateFromRemote() {
   try {
     const profile = await fetchRemoteProfile();
-    if (Array.isArray(profile?.chores) && profile.chores.length) {
+    if (profile?.identityId) rememberLinkedAccount(profile);
+    if (Array.isArray(profile?.chores) && (profile.chores.length || profile.identityId)) {
+      rememberLinkedAccount(profile);
       chores = profile.chores;
       persist("Synced with Wholegrain");
       renderAll();
@@ -122,7 +126,17 @@ function persist(message = "Saved") {
 
 function updateSyncStatus() {
   const element = document.getElementById("sync-status");
-  if (element) element.textContent = syncStatus;
+  if (element) element.textContent = linkedAccount ? linkedAccountEmailLabel() : syncStatus;
+}
+
+function rememberLinkedAccount(profile) {
+  if (!profile?.identityId) return;
+  linkedAccount = {
+    identityId: profile.identityId,
+    email: profile.identityEmail || profile.email || ""
+  };
+  writeLinkedAccount(profile);
+  syncStatus = linkedAccount.email ? `Account linked: ${linkedAccount.email}` : "Account linked";
 }
 
 function nextDue(chore, fromDate) {
@@ -515,11 +529,18 @@ function openOptions() {
         <button class="switch" type="button" role="switch" aria-checked="${isDark}" data-action="toggle-theme" aria-label="Toggle dark mode"></button>
       </div>
       <div class="option-row">
-        <div class="option-copy"><strong>Wholegrain account</strong><span id="sync-status">${escapeHtml(syncStatus)}</span></div>
-        <button class="btn-secondary" type="button" data-action="link-account">Link Account</button>
+        ${linkedAccount ? linkedAccountOptionHTML() : `<div class="option-copy"><strong>Wholegrain account</strong><span id="sync-status">${escapeHtml(syncStatus)}</span></div><button class="btn-secondary" type="button" data-action="link-account">Link Account</button>`}
       </div>
     </div>
   </div>`);
+}
+
+function linkedAccountOptionHTML() {
+  return `<div class="option-copy"><strong>Account linked</strong><span id="sync-status">${escapeHtml(linkedAccountEmailLabel())}</span></div><span class="sync-status">Wholegrain</span>`;
+}
+
+function linkedAccountEmailLabel() {
+  return linkedAccount.email || "Wholegrain account";
 }
 
 function toggleDark() {

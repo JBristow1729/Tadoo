@@ -17,7 +17,7 @@ exports.handler = async (event) => {
       requireWholegrainLinkSecret(event);
       const body = parseBody(event);
       if (!body.identityId || !body.gameAccountId) return json({ error: "Wholegrain identity id and Tadoo account id are required." }, 400);
-      const profile = await linkWholegrainAccount(body.identityId, body.gameAccountId, body.linkChoice, body.conflictToken);
+      const profile = await linkWholegrainAccount(body.identityId, body.gameAccountId, body.identityEmail, body.linkChoice, body.conflictToken);
       return json({ profile, restoreToken: createRestoreToken(profile.id) });
     }
 
@@ -85,15 +85,17 @@ async function upsertChores(accountId, chores) {
   return toProfile(rows[0]);
 }
 
-async function linkWholegrainAccount(identityId, gameAccountId, linkChoice, conflictToken) {
+async function linkWholegrainAccount(identityId, gameAccountId, identityEmail, linkChoice, conflictToken) {
   if (linkChoice && !isLinkChoice(linkChoice)) throw new Error("Invalid Wholegrain account link choice.");
+  const email = cleanString(identityEmail).slice(0, 320);
 
   const existingAccount = await getAccountByActor([], identityId);
   if (existingAccount) {
-    if (existingAccount.id === gameAccountId) return existingAccount;
+    if (email) await setIdentityEmail(existingAccount.id, email);
+    if (existingAccount.id === gameAccountId) return email ? { ...existingAccount, identityEmail: email } : existingAccount;
 
     const localAccount = await getAccountByActor([gameAccountId], null);
-    if (!localAccount) return existingAccount;
+    if (!localAccount) return email ? { ...existingAccount, identityEmail: email } : existingAccount;
     if (localAccount.identityId && localAccount.identityId !== identityId) throw new Error("That Tadoo account is already linked to another Wholegrain account.");
 
     if (!linkChoice) throw createLinkChoiceRequired(existingAccount, localAccount);
@@ -101,10 +103,10 @@ async function linkWholegrainAccount(identityId, gameAccountId, linkChoice, conf
 
     if (linkChoice === "useLinked") {
       await deleteAccount(localAccount.id);
-      return existingAccount;
+      return email ? { ...existingAccount, identityEmail: email } : existingAccount;
     }
 
-    await replaceLinkedAccount(identityId, existingAccount.id, localAccount.id);
+    await replaceLinkedAccount(identityId, email, existingAccount.id, localAccount.id);
     const linkedLocal = await getAccountByActor([localAccount.id], identityId);
     if (!linkedLocal) throw new Error("Unable to link the selected Tadoo chores.");
     return linkedLocal;
@@ -112,25 +114,29 @@ async function linkWholegrainAccount(identityId, gameAccountId, linkChoice, conf
 
   const db = getPool();
   const { rows } = await db.query(
-    "UPDATE tadoo_accounts SET identity_id = $1, updated_at = NOW() WHERE id = $2 AND (identity_id IS NULL OR identity_id = $1) RETURNING *",
-    [identityId, gameAccountId]
+    "UPDATE tadoo_accounts SET identity_id = $1, identity_email = COALESCE($2, identity_email), updated_at = NOW() WHERE id = $3 AND (identity_id IS NULL OR identity_id = $1) RETURNING *",
+    [identityId, email || null, gameAccountId]
   );
   if (rows[0]) return toProfile(rows[0]);
 
   const created = await db.query(
-    "INSERT INTO tadoo_accounts (id, identity_id, chores) VALUES ($1, $2, '[]'::jsonb) RETURNING *",
-    [gameAccountId, identityId]
+    "INSERT INTO tadoo_accounts (id, identity_id, identity_email, chores) VALUES ($1, $2, $3, '[]'::jsonb) RETURNING *",
+    [gameAccountId, identityId, email || null]
   );
   return toProfile(created.rows[0]);
 }
 
-async function replaceLinkedAccount(identityId, existingAccountId, localAccountId) {
+async function setIdentityEmail(accountId, email) {
+  await getPool().query("UPDATE tadoo_accounts SET identity_email = $1, updated_at = NOW() WHERE id = $2", [email, accountId]);
+}
+
+async function replaceLinkedAccount(identityId, identityEmail, existingAccountId, localAccountId) {
   const db = getPool();
   const client = await db.connect();
   try {
     await client.query("BEGIN");
     await client.query("UPDATE tadoo_accounts SET identity_id = NULL, updated_at = NOW() WHERE id = $1 AND identity_id = $2", [existingAccountId, identityId]);
-    await client.query("UPDATE tadoo_accounts SET identity_id = $1, updated_at = NOW() WHERE id = $2 AND identity_id IS NULL", [identityId, localAccountId]);
+    await client.query("UPDATE tadoo_accounts SET identity_id = $1, identity_email = COALESCE($2, identity_email), updated_at = NOW() WHERE id = $3 AND identity_id IS NULL", [identityId, identityEmail || null, localAccountId]);
     await client.query("DELETE FROM tadoo_accounts WHERE id = $1 AND identity_id IS NULL", [existingAccountId]);
     await client.query("COMMIT");
   } catch (error) {
@@ -251,6 +257,7 @@ function toProfile(row) {
   return {
     id: String(row.id),
     identityId: row.identity_id ? String(row.identity_id) : null,
+    identityEmail: row.identity_email ? String(row.identity_email) : "",
     chores: Array.isArray(row.chores) ? row.chores : []
   };
 }
