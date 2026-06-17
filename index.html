@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tadoo</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./src/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <span class="logo">Tadoo</span>
+      <div class="topbar-spacer"></div>
+      <button class="icon-btn" type="button" data-action="open-calendar">
+        <i class="ti ti-calendar" aria-hidden="true"></i>
+        Calendar
+      </button>
+      <button class="icon-btn icon-only" type="button" data-action="open-options" aria-label="Options">
+        <i class="ti ti-settings" aria-hidden="true"></i>
+      </button>
+      <button class="add-btn" type="button" data-action="open-create">
+        <i class="ti ti-plus" aria-hidden="true"></i>
+        New Item
+      </button>
+    </header>
+
+    <main class="main-area">
+      <section class="panel today-panel" aria-labelledby="today-title">
+        <div class="panel-header">
+          <i class="ti ti-star" aria-hidden="true"></i>
+          <span class="panel-title" id="today-title">Today</span>
+          <span class="badge" id="today-badge">0</span>
+          <span class="panel-date" id="today-date"></span>
+        </div>
+        <div class="panel-body" id="today-list"></div>
+      </section>
+
+      <section class="panel upcoming-panel" aria-labelledby="upcoming-title">
+        <div class="panel-header">
+          <i class="ti ti-clock" aria-hidden="true"></i>
+          <span class="panel-title" id="upcoming-title">Upcoming</span>
+          <span class="badge" id="upcoming-badge">0</span>
+        </div>
+        <div class="panel-body" id="upcoming-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <canvas class="confetti-canvas" id="confetti-canvas"></canvas>
+
+  <div class="overlay" id="overlay" hidden>
+    <div id="dialog-container"></div>
+  </div>
+
+  <script>
+    window.TADOO_CONFIG = {
+      wholegrainAccountsUrl: 'https://wholegrainstudios.co.uk/accounts/link'
+    };
+  </script>
+  <script type="module" src="./src/js/app.js"></script>
+</body>
+</html>
