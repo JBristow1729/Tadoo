@@ -305,7 +305,7 @@ function createDialogHTML(chore, isEdit) {
 }
 
 document.addEventListener("change", (event) => {
-  if (event.target.id === "f-sched-type") setScheduleUI(getSchedFromDialog());
+  if (event.target.id === "f-sched-type") setScheduleUI({ type: event.target.value });
 });
 
 function selectSymbol(symbol) {
